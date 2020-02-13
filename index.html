@@ -1,0 +1,250 @@
+<!----------------------------------------------------------------------------------------------
+  Names: Raveenth Maheswaran, Sabesan Sivakumar
+  Title: SOFE2720-Assignment 1
+  Date: 02/12/2020
+  Description:  Creating Rock Paper Scissors using Node.js JavaScript runtime with socket.io. 
+                Socket.io was used since it is a reliable real-time engine for web-applications.
+                JavaScript is the main language, along with HTML and CSS for layout and design.
+ ---------------------------------------------------------------------------------------------->
+
+
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Rock Paper Scissors</title>
+        <link rel="stylesheet" media="screen" href="//netdna.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+        <link rel="stylesheet" type="text/css" href="style.css">
+        <script src="//code.jquery.com/jquery.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.0.3/socket.io.js"></script>
+
+        <!--Embedded CSS code. We had trouble using external css file, stating Error (404) Not 
+            Found, so that is why CSS and game.js is kept in index.html --> 
+
+        <style>
+            body {
+                background: rgb(157, 236, 255); /*background color*/
+            }
+            #gameArea {
+                display: none; /*doesn't display the game area yet*/
+            }
+            .sectionArea {
+                margin-bottom: 30px; 
+            }
+
+            *{
+              font-family: fantasy; /*changed the font*/
+            }
+        </style>
+    </head>
+
+    <!--Body containing all the GUI related to the game, used bootstrap for ease of spacing and
+        organization for viewing players, options, and simulation.-->
+    <body>
+        <div class="container">
+            <h1 class="text-center">Rock Paper Scissors</h1>
+
+            <br />
+
+            <!--This contain the login page-->
+            <div class="row" id="userFormArea">
+                <div class="col-md-12">
+                    <form id="userForm">
+                        <div class="form-group row">
+                            <div class="text-center">
+                                <input class="form-control" id="username" placeholder="Enter Username" />
+                            </div>
+                        </div>
+                        <br />
+                          <div class="text-center">
+                            <input type="submit" class="btn btn-primary btn-lg" value="Login" />
+                          </div>
+                    </form>
+                </div>
+            </div>
+
+            <!--This is where the game is laid out-->
+            <div class="row" id="gameArea">
+                <div class="col-md-2">
+                  <!--Displays the list of the players who joined the server-->
+                    <div class="well">
+                        <h4>Online Users</h4>
+                        <ul class="list-group" id="users"></ul>
+                    </div>
+                </div>
+                
+                <!-- Displays the options for rock, paper, scissors-->
+                <div class="col-md-8">
+                    <form class="sectionArea" name="game" id="game" method="post">
+                        <h4>Choices</h4>
+                        <h5>After selecting the option, press enter!</h5>
+
+                        <input class="form-check-input" id="rock" type="radio" name="choice" value="rock" checked />
+                        <label class="form-check-label" for="rock">Rock</label>
+                        <br />
+
+                        <input class="form-check-input" id="paper" type="radio" name="choice" value="paper" />
+                        <label class="form-check-label" for="paper">Paper</label>
+                        <br />
+
+                        <input class="form-check-input" id="scissors" type="radio" name="choice" value="scissors" />
+                        <label class="form-check-label" for="scissors">Scissors</label>
+                        <br />
+
+                        <input type="submit" class="btn btn-primary" value="Press Enter" id="submit" />
+                    </form>
+
+                    <!-- Where the game simulation is displayed-->
+                    <div class="sectionArea">
+                        <h4>Information</h4>
+                        <p id="info" class="text-info">Waiting for players...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--This is game.js, but Error 404 displayed on console in inspect element shows that
+            game.js is not found. Tried fixing the error but still have no luck. That is why I kept it embedded in html-->
+        <script>
+            $(function() {
+                //Variables declared from ID in html
+                var socket = io.connect();
+                var $gameArea = $('#gameArea');
+                var $userFormArea = $('#userFormArea');
+                var $userForm = $('#userForm');
+                var $users = $('#users');
+                var $username = $('#username');
+                var $game = $('#game');
+                var $info = $('#info');
+                var submitted = false;
+
+                //Declares which is hidden and shown when it is max players
+                socket.on('room full', function() {
+                    $('#login').hide();
+                    $('#game').show();
+                    $('#login').off('click');
+                });
+
+                //Submits options to server to determine the winner
+                $('#submit').on('click',function(e) {
+                    e.preventDefault();
+                    var choice = $('input[name=choice]:checked').val();
+
+                    if(!submitted)
+                    {
+                        submitted = true;
+                        socket.emit('player choice', $username.val(), choice);
+                        $info.html('Waiting for other player...');
+                    }
+                    else $info.html('You have already made a choice!');
+                });
+
+                //Adds user to the server, also checks if username already exists
+                $userFormArea.submit(function(e) {
+                    e.preventDefault();
+
+                    socket.emit('add user', $username.val(), function(data) {
+                        if(data) 
+                        {
+                            $userFormArea.hide();
+                            $gameArea.show();
+                            $game.hide();
+                        }
+                        else
+                        {
+                            alert($username.val() + " username is already in use.");
+                        }
+                    });
+
+                    $username.val();
+                });
+
+                //Displays user on a list in main GUI
+                socket.on('get user', function(data) {
+                    var html = '';
+
+                    for (i = 0; i < data.length; i++) 
+                    {
+                        html += '<li class="list-group-item">' + data[i] + '</li>';
+                    }
+
+                    $users.html(html);
+                });
+
+                //Displays message when player disconnects
+                socket.on('disconnected', function (username) {
+                    $info.append('<br />' + username + ' left the room.');
+                });
+
+                //Displays message when player connects
+                socket.on('connected', function (username) {
+                    $info.append('<br />' + username + ' joined the room.');
+                });
+
+                //Starts the game
+                socket.on('game start', function() {
+                    $game.show();
+                    $info.append('<br />Make your choice.');
+                });
+
+                //Displays a message if the game is a tie
+                socket.on('tie', function (choices) {
+                    countdown(choices);
+
+                    setTimeout(function() {
+                        $info.append('<br />A tie!');
+                    }, 5000);
+
+                    submitted = false;
+                });
+
+                //Displays message whrn player 1 wins
+                socket.on('player 1 win', function (choices) {
+                    countdown(choices);
+
+                    setTimeout(function () {
+                        $info.append('<br />' + choices[0]['user'] + ' wins!');
+                    }, 5000);
+
+                    submitted = false;
+                });
+
+                //Displays message when player 2 wins                
+                socket.on('player 2 win', function (choices) {
+                    countdown(choices);
+
+                    setTimeout(function() {
+                        $info.append('<br />' + choices[1]['user'] + ' wins!');
+                    }, 5000);
+
+                    submitted = false;
+                });
+
+                //Countdown to show what options each player chose and displays who is the winner
+                //Couple of seconds later, another message displays to play again by selecting another option
+                function countdown(choices) {      
+                    setTimeout(function() {
+                        $info.html('3...'); 
+                    }, 0);
+                    setTimeout(function() {
+                        $info.html('2...'); 
+                    }, 1000);
+                    setTimeout(function() {
+                        $info.html('1...'); 
+                    }, 2000);
+                    setTimeout(function() {
+                        $info.html(choices[0]['user'] + ' picked ' + choices[0]['choice'] + '.');
+                    }, 3000);
+                    setTimeout(function() {
+                        $info.append('<br />' + choices[1]['user'] + ' picked ' + choices[1]['choice'] + '.');
+                    }, 4000);
+                    setTimeout(function() {
+                        $info.html('Select another option to play again!'); 
+                    }, 9000);
+
+
+                }
+            });
+        </script>
+        <!--<script src="/static/game.js"></script>-->
+    </body>
+</html>
